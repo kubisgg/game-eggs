@@ -4,7 +4,7 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-10-10T19:23:22+00:00",
+    "exported_at": "2026-10-12T15:35:37+00:00",
     "name": "Pumpkin",
     "author": "kubisgg@users.noreply.github.com",
     "description": "Minecraft server written in Rust with native Java and experimental Bedrock support. Pumpkin is under heavy development. Expect incomplete features and bugs.",
@@ -13,7 +13,7 @@
         "Debian": "ghcr.io\/ptero-eggs\/yolks:debian"
     },
     "file_denylist": [],
-    "startup": "BEDROCK_STATE=false; [ \"{{BEDROCK_PORT}}\" -gt 0 ] && BEDROCK_STATE=true; sed -i -e \"\/^\\[networking.java\\]$\/,\/^\\[\/s\/^address = .*\/address = \\\"0.0.0.0:{{SERVER_PORT}}\\\"\/\" -e \"\/^\\[networking.bedrock\\]$\/,\/^\\[\/s\/^enabled = .*\/enabled = ${BEDROCK_STATE}\/\" -e \"\/^\\[networking.bedrock.nethernet\\]$\/,\/^\\[\/{s\/^enabled = .*\/enabled = ${BEDROCK_STATE}\/;s\/^address = .*\/address = \\\"0.0.0.0:{{BEDROCK_PORT}}\\\"\/;}\" pumpkin.toml && exec .\/pumpkin",
+    "startup": "sed -i -e \"\/^\\[networking.java\\]$\/,\/^\\[\/s\/^address = .*\/address = \\\"0.0.0.0:{{SERVER_PORT}}\\\"\/\" -e \"\/^\\[networking.bedrock\\]$\/,\/^\\[\/s\/^enabled = .*\/enabled = {{BEDROCK_ENABLED}}\/\" -e \"\/^\\[networking.bedrock.nethernet\\]$\/,\/^\\[\/{s\/^enabled = .*\/enabled = {{BEDROCK_ENABLED}}\/;s\/^address = .*\/address = \\\"0.0.0.0:{{BEDROCK_PORT}}\\\"\/;}\" pumpkin.toml && exec .\/pumpkin",
     "config": {
         "files": "{}",
         "startup": "{\n    \"done\": \"Server is now running.\"\n}",
@@ -22,7 +22,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!\/bin\/bash\nset -euo pipefail\n\ncd \/mnt\/server\n\ncase \"$(uname -m)\" in\n    x86_64) PUMPKIN_ARCH=X64 ;;\n    aarch64|arm64) PUMPKIN_ARCH=ARM64 ;;\n    *) echo \"Unsupported architecture: $(uname -m)\"; exit 1 ;;\nesac\n\nBINARY_NAME=\"pumpkin-${PUMPKIN_ARCH}-Linux-musl\"\nRELEASE_API=\"https:\/\/api.github.com\/repos\/Pumpkin-MC\/Pumpkin\/releases\"\nif [ \"${PUMPKIN_VERSION}\" = \"latest\" ]; then\n    RELEASE_API=\"${RELEASE_API}\/latest\"\nelse\n    RELEASE_TAG=$(printf '%s' \"${PUMPKIN_VERSION}\" | jq -sRr @uri)\n    RELEASE_API=\"${RELEASE_API}\/tags\/${RELEASE_TAG}\"\nfi\n\nRELEASE_JSON=$(curl -fsSL \"${RELEASE_API}\")\nDOWNLOAD_URL=$(printf '%s' \"${RELEASE_JSON}\" | jq -er --arg name \"${BINARY_NAME}\" '.assets[] | select(.name == $name) | .browser_download_url')\ncurl -fSL --retry 3 \"${DOWNLOAD_URL}\" -o pumpkin.download\nchmod +x pumpkin.download\nmv -f pumpkin.download pumpkin\n\nif [ ! -f pumpkin.toml ]; then\n    cat > pumpkin.toml <<'CONFIG'\n[commands]\nuse_console = true\nuse_tty = false\n\n[networking.java]\nenabled = true\naddress = \"0.0.0.0:25565\"\n\n[networking.bedrock]\nenabled = false\n\n[networking.bedrock.nethernet]\nenabled = true\naddress = \"0.0.0.0:19132\"\nCONFIG\nfi\n\necho \"Pumpkin installation completed.\"\n",
+            "script": "#!\/bin\/bash\nset -euo pipefail\n\ncd \/mnt\/server\n\ncase \"$(uname -m)\" in\n    x86_64) PUMPKIN_ARCH=X64 ;;\n    aarch64|arm64) PUMPKIN_ARCH=ARM64 ;;\n    *) echo \"Unsupported architecture: $(uname -m)\"; exit 1 ;;\nesac\n\nGITHUB_PACKAGE=\"Pumpkin-MC\/Pumpkin\"\nVERSION=\"${PUMPKIN_VERSION}\"\nMATCH=\"pumpkin-${PUMPKIN_ARCH}-Linux\"\nRELEASE_API=\"https:\/\/api.github.com\/repos\/${GITHUB_PACKAGE}\/releases\"\n\nif [ \"${VERSION}\" = \"latest\" ]; then\n    echo \"Fetching latest stable Pumpkin release.\"\n    RELEASE_JSON=$(curl -fsSL \"${RELEASE_API}\/latest\")\nelse\n    echo \"Fetching Pumpkin release ${VERSION}.\"\n    RELEASES=$(curl -fsSL \"${RELEASE_API}?per_page=100\")\n    VERSION_CHECK=$(printf '%s' \"${RELEASES}\" | jq -r --arg VERSION \"${VERSION}\" '.[] | select(.tag_name == $VERSION) | .tag_name')\n    if [ \"${VERSION}\" = \"${VERSION_CHECK}\" ]; then\n        RELEASE_JSON=$(printf '%s' \"${RELEASES}\" | jq -er --arg VERSION \"${VERSION}\" '.[] | select(.tag_name == $VERSION)')\n    else\n        echo \"Release ${VERSION} not listed. Checking the tag directly.\"\n        RELEASE_TAG=$(printf '%s' \"${VERSION}\" | jq -sRr @uri)\n        RELEASE_JSON=$(curl -fsSL \"${RELEASE_API}\/tags\/${RELEASE_TAG}\")\n    fi\nfi\n\nDOWNLOAD_URL=$(printf '%s' \"${RELEASE_JSON}\" | jq -er --arg MATCH \"${MATCH}\" '.assets[] | select(.name == $MATCH) | .browser_download_url')\necho \"Downloading ${MATCH}.\"\ncurl -fSL --retry 3 \"${DOWNLOAD_URL}\" -o pumpkin\nchmod +x pumpkin\n\nif [ ! -f pumpkin.toml ]; then\n    echo \"Downloading default pumpkin.toml.\"\n    curl -fSL --retry 3 \"https:\/\/raw.githubusercontent.com\/pterodactyl\/game-eggs\/refs\/heads\/main\/minecraft\/crossplay\/pumpkin\/pumpkin.toml\" -o pumpkin.toml\nelse\n    echo \"Keeping existing pumpkin.toml.\"\nfi\n\necho \"Pumpkin installation completed.\"\n",
             "container": "ghcr.io\/ptero-eggs\/installers:debian",
             "entrypoint": "bash"
         }
@@ -39,13 +39,23 @@
             "field_type": "text"
         },
         {
-            "name": "Bedrock port",
-            "description": "Set to 0 to disable Bedrock. A nonzero port automatically enables it on that port. Assign a separate allocation with both TCP and UDP, then restart to apply changes.",
-            "env_variable": "BEDROCK_PORT",
-            "default_value": "0",
+            "name": "Enable Bedrock",
+            "description": "Set to true to enable Bedrock, or false to disable it. Restart to apply changes.",
+            "env_variable": "BEDROCK_ENABLED",
+            "default_value": "false",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|integer|between:0,65535",
+            "rules": "required|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Bedrock port",
+            "description": "Port used when Bedrock is enabled. Set this to a separate TCP\/UDP allocation assigned to the server. Restart to apply changes.",
+            "env_variable": "BEDROCK_PORT",
+            "default_value": "19132",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,65535",
             "field_type": "text"
         }
     ]
